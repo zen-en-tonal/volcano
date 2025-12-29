@@ -5,22 +5,18 @@ use std::{
     vec,
 };
 
-use ringbuf::{
-    HeapRb,
-    traits::{Consumer, Split},
-};
-mod cava;
-mod input;
-mod output;
+use ringbuf::traits::{Consumer, Split};
+
+mod spectrum;
 
 fn main() {
-    let mut socket = input::pulseaudio::Client::connect().unwrap();
+    let mut socket = spectrum::Client::connect().unwrap();
 
     let monitors = socket.get_monitors().unwrap();
     let mon = monitors.first().unwrap();
 
     let bars = 40;
-    let cava = cava::Cava::new(
+    let cava = spectrum::Cava::new(
         bars,
         mon.sample_spec.sample_rate,
         mon.channel_map.num_channels() as i32,
@@ -35,7 +31,7 @@ fn main() {
     let frame_size =
         mon.sample_spec.sample_rate as usize / fps * mon.channel_map.num_channels() as usize;
 
-    let rb = HeapRb::<f32>::new(frame_size * 4);
+    let rb = spectrum::HeapRb::<f32>::new(frame_size * 4);
     let (producer, mut consumer) = rb.split();
 
     let _handle = socket.record_from_source(mon, 256, producer).unwrap();
@@ -59,7 +55,7 @@ fn main() {
         let _ = consumer.pop_slice(&mut buffer);
         cava.execute(&mut buffer, &mut cava_out);
 
-        let levels = output::levels(&mut cava_out, 4, -20.0)
+        let levels = spectrum::levels(&mut cava_out, 4, -20.0)
             .chunks(2)
             .map(|x| levels[x[0] as usize][x[1] as usize])
             .collect::<String>();
