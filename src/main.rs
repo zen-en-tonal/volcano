@@ -5,7 +5,7 @@ use std::fmt::Display;
 use clap::Parser;
 use visualiser::*;
 
-const ONE_SECOND: std::time::Duration = std::time::Duration::from_secs(1);
+const FETCH_INFO_INTERVAL: std::time::Duration = std::time::Duration::from_millis(200);
 
 /// Command line arguments for the visualiser.
 #[derive(Parser, Debug)]
@@ -144,7 +144,7 @@ fn main() {
         loop {
             get_rx.recv().unwrap();
 
-            if last + ONE_SECOND > std::time::Instant::now() {
+            if last + FETCH_INFO_INTERVAL > std::time::Instant::now() {
                 tx.send(prev_info.clone()).unwrap();
                 continue;
             }
