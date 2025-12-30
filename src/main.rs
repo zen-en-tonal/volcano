@@ -1,65 +1,88 @@
-use std::{
-    io::{self, Write},
-    thread::sleep,
-    time::Duration,
-    vec,
-};
+mod visualiser;
 
-use ringbuf::traits::{Consumer, Split};
+use clap::Parser;
+use visualiser::*;
 
-mod spectrum;
+/// Command line arguments for the visualiser.
+#[derive(Parser, Debug)]
+#[command(author, version, about, long_about = None)]
+struct Args {
+    /// Number of bars to display
+    #[arg(long, default_value_t = 40)]
+    bars: usize,
+
+    /// Auto sensitivity
+    #[arg(long, default_value_t = true)]
+    auto_sensitivity: bool,
+
+    /// Noise reduction level
+    #[arg(long, default_value_t = 0.77)]
+    noise_reduction: f32,
+
+    /// Low cut-off frequency
+    #[arg(long, default_value_t = 80)]
+    lowcut: u32,
+
+    /// High cut-off frequency
+    #[arg(long, default_value_t = 16000)]
+    highcut: u32,
+
+    /// Frames per second
+    #[arg(long, default_value_t = 60)]
+    fps: u32,
+
+    /// Latency in samples
+    #[arg(long, default_value_t = 256)]
+    latency: u32,
+
+    /// Threshold in dB
+    #[arg(long, default_value_t = -20.0)]
+    threshold: f32,
+}
+
+impl From<Args> for Visualiser {
+    fn from(args: Args) -> Self {
+        Visualiser {
+            bars: args.bars,
+            auto_sensitivity: args.auto_sensitivity,
+            noise_reduction: args.noise_reduction,
+            lowcut: args.lowcut,
+            highcut: args.highcut,
+            fps: args.fps,
+            latency: args.latency,
+            max_level: METERS.len() as u32 - 1,
+            threshold: args.threshold,
+        }
+    }
+}
 
 fn main() {
-    let mut socket = spectrum::Client::connect().unwrap();
+    let args = Args::parse();
+    let visualiser: Visualiser = args.into();
+    let handle = visualiser.start(select_first_monitor, dots).unwrap();
 
-    let monitors = socket.get_monitors().unwrap();
-    let mon = monitors.first().unwrap();
+    handle.join().unwrap();
+}
 
-    let bars = 40;
-    let cava = spectrum::Cava::new(
-        bars,
-        mon.sample_spec.sample_rate,
-        mon.channel_map.num_channels() as i32,
-        1,
-        0.77,
-        80,
-        16000,
-    )
-    .unwrap();
+const METERS: [[char; 5]; 5] = [
+    ['⠀', '⢀', '⢠', '⢰', '⢸'],
+    ['⡀', '⣀', '⣠', '⣰', '⣸'],
+    ['⡄', '⣄', '⣤', '⣴', '⣼'],
+    ['⡆', '⣆', '⣦', '⣶', '⣾'],
+    ['⡇', '⣇', '⣧', '⣷', '⣿'],
+];
 
-    let fps = 60;
-    let frame_size =
-        mon.sample_spec.sample_rate as usize / fps * mon.channel_map.num_channels() as usize;
-
-    let rb = spectrum::HeapRb::<f32>::new(frame_size * 4);
-    let (producer, mut consumer) = rb.split();
-
-    let _handle = socket.record_from_source(mon, 256, producer).unwrap();
-
-    let out = io::stdout();
-    let mut out = out.lock();
-    let levels = [
-        ['⠀', '⢀', '⢠', '⢰', '⢸'],
-        ['⡀', '⣀', '⣠', '⣰', '⣸'],
-        ['⡄', '⣄', '⣤', '⣴', '⣼'],
-        ['⡆', '⣆', '⣦', '⣶', '⣾'],
-        ['⡇', '⣇', '⣧', '⣷', '⣿'],
-    ];
-
-    let mut buffer = vec![0f32; frame_size];
-    let mut cava_out = vec![0f64; bars as usize * mon.channel_map.num_channels() as usize];
-
-    loop {
-        sleep(Duration::new(0, 1_000_000_000u32 / fps as u32));
-
-        let _ = consumer.pop_slice(&mut buffer);
-        cava.execute(&mut buffer, &mut cava_out);
-
-        let levels = spectrum::levels(&mut cava_out, 4, -20.0)
-            .chunks(2)
-            .map(|x| levels[x[0] as usize][x[1] as usize])
-            .collect::<String>();
-
-        writeln!(out, "{}", levels).unwrap();
-    }
+fn dots(levels: &[u32]) -> String {
+    levels
+        .chunks(2)
+        .map(|chunk| {
+            let left = chunk[0] as usize;
+            let right = if chunk.len() > 1 {
+                chunk[1] as usize
+            } else {
+                0
+            };
+            METERS[left][right]
+        })
+        .collect()
 }

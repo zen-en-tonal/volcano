@@ -1,10 +1,12 @@
 use byteorder::ReadBytesExt;
-use pulseaudio::protocol::{self, SourceInfo};
+use pulseaudio::protocol::{self};
 use ringbuf::traits::Producer;
 use std::fmt::Display;
 use std::io::BufReader;
 use std::os::unix::net::UnixStream;
 use std::{ffi::CString, io::Read};
+
+pub use pulseaudio::protocol::SourceInfo;
 
 /// A simple PulseAudio client for connecting to the PulseAudio server
 /// and recording audio from monitor sources.
