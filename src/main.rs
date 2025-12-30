@@ -230,15 +230,24 @@ fn dots(levels: &[u32], pos_rate: f32) -> String {
 
 fn waybar(text: &str, info: Option<PlayingInfo>) -> String {
     match info {
-        Some(info) => format!(
-            "{{\"text\":\"{}\",\"tooltip\":\"{}\",\"class\":\"{}\"}}",
-            text,
-            info,
-            info.state.to_lowercase()
-        ),
-        None => format!(
-            "{{\"text\":\"{}\",\"tooltip\":\"No player detected\",\"class\":\"stopped\"}}",
-            text
-        ),
+        Some(info) => {
+            let mut info_str = String::with_capacity(128);
+            info_str.push_str("{\"text\":\"");
+            info_str.push_str(text);
+            info_str.push_str("\",\"tooltip\":\"");
+            info_str.push_str(&info.to_string());
+            info_str.push_str("\",\"class\":\"");
+            info_str.push_str(&info.state.to_lowercase());
+            info_str.push_str("\"}");
+
+            info_str
+        }
+        None => {
+            let mut info_str = String::with_capacity(64);
+            info_str.push_str("{\"text\":\"");
+            info_str.push_str(text);
+            info_str.push_str("\",\"tooltip\":\"No player info available\",\"class\":\"stopped\"}");
+            info_str
+        }
     }
 }
