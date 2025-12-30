@@ -202,8 +202,9 @@ const METERS: [[[char; 5]; 5]; 3] = [
 
 /// Formats levels into a string of dot characters.
 fn dots(levels: &[u32], pos_rate: f32) -> String {
-    let current_index_in_bar = (levels.len() as f32 / 2.0 * pos_rate).floor() as usize;
-    let frac_pos = if (levels.len() as f32 * pos_rate) - (current_index_in_bar as f32) > 0.5 {
+    let bars = levels.len() / 2;
+    let current_index_in_bar = (bars as f32 * pos_rate).floor() as usize;
+    let frac_pos = if (bars as f32 * pos_rate) - (current_index_in_bar as f32) < 0.5 {
         1
     } else {
         2
