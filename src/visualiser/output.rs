@@ -6,7 +6,7 @@ fn linear_to_db(linear: f64) -> f64 {
 pub fn levels(input: &mut [f64], max: u32, th: f64) -> Vec<u32> {
     let mut output = Vec::with_capacity(input.len());
     let (l, r) = input.split_at_mut(input.len() / 2);
-    let input = l.iter().zip(r.iter()).map(|(r, l)| r + l / 2.0);
+    let input = l.iter().zip(r.iter()).map(|(r, l)| (r + l) / 2.0);
     for i in input {
         let db = linear_to_db(i);
         let index = if db <= th {
