@@ -58,8 +58,8 @@ impl Visualiser {
     /// Start the visualiser with the given monitor selector function.
     pub fn start(
         self,
-        monitor_select: fn(&SourceInfo) -> bool,
-        formatter: fn(&[u32]) -> String,
+        monitor_select: impl Fn(&SourceInfo) -> bool,
+        formatter: impl Fn(&[u32]) -> String + Send + 'static,
     ) -> Result<JoinHandle<()>, VisualiserError> {
         let mut socket = Client::connect()?;
         let monitors = socket.get_monitors()?;
