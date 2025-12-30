@@ -12,7 +12,7 @@ const FETCH_INFO_INTERVAL: std::time::Duration = std::time::Duration::from_milli
 #[command(author, version, about, long_about = None)]
 struct Args {
     /// Number of bars to display
-    #[arg(long, default_value_t = 40)]
+    #[arg(long, default_value_t = 20)]
     bars: usize,
 
     /// Auto sensitivity
@@ -42,6 +42,11 @@ struct Args {
     /// Threshold in dB
     #[arg(long, default_value_t = -20.0)]
     threshold: f32,
+
+    /// Strategy for processing audio input levels
+    /// (Options: Average, Left, Right, Stereo)
+    #[arg(long, default_value_t = Strategy::Stereo)]
+    strategy: Strategy,
 }
 
 impl From<Args> for Visualiser {
@@ -56,6 +61,7 @@ impl From<Args> for Visualiser {
             latency: args.latency,
             max_level: METERS[0][0].len() as u32 - 1,
             threshold: args.threshold,
+            strategy: Strategy::Stereo,
         }
     }
 }

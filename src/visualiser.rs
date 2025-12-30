@@ -10,7 +10,7 @@ use std::time::Duration;
 
 use cava::{Cava, CavaError};
 use input::pulseaudio::*;
-use output::levels;
+pub use output::Strategy;
 use ringbuf::HeapRb;
 use ringbuf::traits::{Consumer, Split};
 
@@ -26,6 +26,7 @@ pub struct Visualiser {
     pub latency: u32,
     pub max_level: u32,
     pub threshold: f32,
+    pub strategy: Strategy,
 }
 
 impl Default for Visualiser {
@@ -39,6 +40,7 @@ impl Default for Visualiser {
     /// - latency: 256
     /// - max_level: 100
     /// - threshold: -20.0
+    /// - strategy: Stereo
     fn default() -> Self {
         Visualiser {
             bars: 40,
@@ -50,6 +52,7 @@ impl Default for Visualiser {
             latency: 256,
             max_level: 100,
             threshold: -20.0,
+            strategy: Strategy::Stereo,
         }
     }
 }
@@ -104,7 +107,9 @@ impl Visualiser {
                 let _ = consumer.pop_slice(&mut buffer);
                 cava.execute(&mut buffer, &mut cava_out);
 
-                let levels = levels(&mut cava_out, self.max_level, self.threshold as f64);
+                let levels =
+                    self.strategy
+                        .levels(&mut cava_out, self.max_level, self.threshold as f64);
                 let formatted_levels = formatter(&levels);
 
                 writeln!(out, "{}", formatted_levels).unwrap();
