@@ -20,7 +20,7 @@ impl PlayerServer {
             let mut last_fetched = std::time::Instant::now() - cache_ttl;
 
             loop {
-                while let Ok(command) = cmd_rx.try_recv() {
+                while let Ok(command) = cmd_rx.recv() {
                     match command {
                         Command::GetInfo { respond_to } => {
                             // Check cache first and return if still valid
