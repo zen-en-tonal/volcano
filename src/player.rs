@@ -20,6 +20,7 @@ impl PlayerServer {
             let mut last_fetched = std::time::Instant::now() - cache_ttl;
 
             loop {
+                // Block until a command is received to avoid busy waiting
                 while let Ok(command) = cmd_rx.recv() {
                     match command {
                         Command::GetInfo { respond_to } => {
@@ -47,20 +48,26 @@ impl PlayerServer {
                             last_fetched = std::time::Instant::now();
                             info = latest_info;
                         }
-                        Command::TogglePlayPause => {
-                            if let Ok(player) = finder.find_active() {
-                                let _ = player.play_pause();
-                            }
+                        Command::TogglePlayPause { respond_to } => {
+                            let res = match finder.find_active() {
+                                Ok(p) => p.play_pause().is_ok(),
+                                Err(_e) => false,
+                            };
+                            let _ = respond_to.send(res);
                         }
-                        Command::Next => {
-                            if let Ok(player) = finder.find_active() {
-                                let _ = player.next();
-                            }
+                        Command::Next { respond_to } => {
+                            let res = match finder.find_active() {
+                                Ok(p) => p.next().is_ok(),
+                                Err(_e) => false,
+                            };
+                            let _ = respond_to.send(res);
                         }
-                        Command::Previous => {
-                            if let Ok(player) = finder.find_active() {
-                                let _ = player.previous();
-                            }
+                        Command::Previous { respond_to } => {
+                            let res = match finder.find_active() {
+                                Ok(p) => p.previous().is_ok(),
+                                Err(_e) => false,
+                            };
+                            let _ = respond_to.send(res);
                         }
                     }
                 }
@@ -89,21 +96,33 @@ impl PlayerServer {
     }
 
     /// Toggle play/pause state.
-    pub fn toggle_play_pause(&self) {
-        let command = Command::TogglePlayPause;
+    pub fn toggle_play_pause(&self) -> bool {
+        let (resp_tx, resp_rx) = mpsc::channel::<bool>();
+        let command = Command::TogglePlayPause {
+            respond_to: resp_tx,
+        };
         let _ = self.cmd.send(command);
+        resp_rx.recv().unwrap_or(false)
     }
 
     /// Skip to the next track.
-    pub fn next(&self) {
-        let command = Command::Next;
+    pub fn next(&self) -> bool {
+        let (resp_tx, resp_rx) = mpsc::channel::<bool>();
+        let command = Command::Next {
+            respond_to: resp_tx,
+        };
         let _ = self.cmd.send(command);
+        resp_rx.recv().unwrap_or(false)
     }
 
     /// Return to the previous track.
-    pub fn previous(&self) {
-        let command = Command::Previous;
+    pub fn previous(&self) -> bool {
+        let (resp_tx, resp_rx) = mpsc::channel::<bool>();
+        let command = Command::Previous {
+            respond_to: resp_tx,
+        };
         let _ = self.cmd.send(command);
+        resp_rx.recv().unwrap_or(false)
     }
 }
 
@@ -136,9 +155,15 @@ enum Command {
     GetInfo {
         respond_to: mpsc::Sender<Option<PlayingInfo>>,
     },
-    TogglePlayPause,
-    Next,
-    Previous,
+    TogglePlayPause {
+        respond_to: mpsc::Sender<bool>,
+    },
+    Next {
+        respond_to: mpsc::Sender<bool>,
+    },
+    Previous {
+        respond_to: mpsc::Sender<bool>,
+    },
 }
 
 #[derive(Debug, Clone)]
