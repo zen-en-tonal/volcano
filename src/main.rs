@@ -1,11 +1,10 @@
+mod player;
 mod visualiser;
-
-use std::fmt::Display;
 
 use clap::Parser;
 use visualiser::*;
 
-const FETCH_INFO_INTERVAL: std::time::Duration = std::time::Duration::from_millis(200);
+use crate::player::PlayingInfo;
 
 /// Command line arguments for the visualiser.
 #[derive(Parser, Debug)]
@@ -66,112 +65,15 @@ impl From<Args> for Visualiser {
     }
 }
 
-#[derive(Debug, Clone)]
-struct PlayingInfo {
-    position: f32,
-    length: f32,
-    state: String,
-    title: String,
-    artist: String,
-}
-
-impl PlayingInfo {
-    fn progress(&self) -> f32 {
-        if self.length == 0.0 {
-            0.0
-        } else {
-            self.position / self.length
-        }
-    }
-}
-
-impl Display for PlayingInfo {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "{} - {} [{} / {}]",
-            self.artist,
-            self.title,
-            format_duration(self.position),
-            format_duration(self.length),
-        )
-    }
-}
-
-fn format_duration(seconds: f32) -> String {
-    let total_seconds = seconds as u32;
-    let minutes = total_seconds / 60;
-    let seconds = total_seconds % 60;
-    format!("{:02}:{:02}", minutes, seconds)
-}
-
-fn get_info() -> Option<PlayingInfo> {
-    let mut get_stats = std::process::Command::new("playerctl");
-    let get_stats = get_stats.args([
-        "metadata",
-        "--format",
-        "{{ position/1000000 }},{{ mpris:length/1000000 }},{{ status }},{{ title }},{{ artist }}",
-    ]);
-
-    let output = get_stats.output().ok()?;
-    let stats = String::from_utf8(output.stdout).ok()?;
-    let parts: Vec<&str> = stats.trim().split(',').collect();
-    if parts.len() != 5 {
-        return None;
-    }
-    let position = parts[0].parse::<f32>().ok()?;
-    let length = parts[1].parse::<f32>().ok()?;
-    let state = parts[2].to_string();
-    let title = parts[3].to_string();
-    let artist = parts[4].to_string();
-
-    Some(PlayingInfo {
-        position,
-        length,
-        state,
-        title,
-        artist,
-    })
-}
-
-struct GetInfo;
-
 fn main() {
     let args = Args::parse();
     let visualiser: Visualiser = args.into();
-
-    let (get_tx, get_rx) = std::sync::mpsc::channel::<GetInfo>();
-    let (tx, rx) = std::sync::mpsc::channel::<Option<PlayingInfo>>();
-
-    let stats_handle = std::thread::spawn(move || {
-        let mut prev_info = get_info();
-        let mut last = std::time::Instant::now();
-
-        loop {
-            get_rx.recv().unwrap();
-
-            if last + FETCH_INFO_INTERVAL > std::time::Instant::now() {
-                tx.send(prev_info.clone()).unwrap();
-                continue;
-            }
-
-            let info = match get_info() {
-                Some(info) => {
-                    prev_info = Some(info.clone());
-                    Some(info)
-                }
-                None => prev_info.clone(),
-            };
-
-            tx.send(info).unwrap();
-            last = std::time::Instant::now();
-        }
-    });
+    let (player, player_handle) =
+        player::PlayerServer::start(std::time::Duration::from_millis(200));
 
     let vis_handle = visualiser
         .start(select_first_monitor, move |levels| {
-            get_tx.send(GetInfo).unwrap();
-            let info = rx.try_recv().ok().flatten();
+            let info = player.get_info();
             let pos_rate = info.as_ref().map_or(0.0, |i| i.progress());
             let dots_str = dots(&levels, pos_rate);
             waybar(&dots_str, info)
@@ -179,7 +81,7 @@ fn main() {
         .unwrap();
 
     vis_handle.join().unwrap();
-    stats_handle.join().unwrap();
+    player_handle.join().unwrap();
 }
 
 const METERS: [[[char; 5]; 5]; 3] = [
