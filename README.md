@@ -1,39 +1,39 @@
 # 🌋 Volcano
 
-A terminal-based audio visualizer written in Rust that displays real-time audio frequency analysis using beautiful Unicode characters. Volcano leverages the powerful CAVA (Console-based Audio Visualizer for ALSA) library to provide smooth, responsive audio visualization.
+A terminal-based audio visualiser written in Rust that displays real-time audio frequency analysis using Unicode characters. Volcano uses the CAVA library for smooth, responsive spectrum analysis, PulseAudio for system audio capture, and MPRIS (D-Bus) to optionally enrich output with current track information.
 
 ## Features
 
-- **Real-time Audio Visualization**: Displays audio frequency analysis as vertical bars using Unicode Braille patterns
-- **PulseAudio Integration**: Seamlessly connects to PulseAudio for system audio capture
-- **Waybar Integration**: Outputs formatted text suitable for use in Waybar status bars
-- **Media Player Integration**: Shows current playing track information via `playerctl`
-- **Highly Configurable**: Extensive command-line options for customization
-- **Low Latency**: Optimized for real-time performance with configurable latency settings
+- **Real-time Visualisation**: Unicode Braille-based bar meter with track-progress hint
+- **PulseAudio Support**: Captures system audio via monitor sources
+- **Waybar Output**: Emits JSON formatted output suitable for Waybar `custom/*`
+- **MPRIS Integration**: Optional player metadata via D-Bus (no external `playerctl` needed)
+- **Configurable**: Tune bars, sensitivity, FPS, latency, thresholds, and channel strategy
+- **Low Latency**: Optimised for real-time with adjustable buffer sizes
 
 ## Prerequisites
 
-- **Rust**: Latest stable version (2024 edition)
-- **CAVA Library**: The libcava development library must be installed
-- **PulseAudio**: For audio capture
-- **playerctl** (optional): For media player integration
+- **Rust**: Latest stable toolchain (Edition 2024)
+- **CAVA**: `libcava` development library installed
+- **PulseAudio**: For audio capture from monitor sources
+- **MPRIS-compatible player** (optional): For metadata via D-Bus (e.g., VLC, Spotify, etc.)
 
 ### Installing Dependencies
 
 #### Ubuntu/Debian
 ```bash
 sudo apt update
-sudo apt install libcava-dev libpulse-dev playerctl
+sudo apt install libcava-dev libpulse-dev
 ```
 
 #### Arch Linux
 ```bash
-sudo pacman -S cava pulseaudio playerctl
+sudo pacman -S cava pulseaudio
 ```
 
 #### Fedora
 ```bash
-sudo dnf install cava-devel pulseaudio-libs-devel playerctl
+sudo dnf install cava-devel pulseaudio-libs-devel
 ```
 
 ## Installation
@@ -50,16 +50,29 @@ The binary will be installed to `~/.cargo/bin/volcano`.
 
 ## Usage
 
-### Basic Usage
+### CLI Overview
+Volcano provides a single binary with subcommands:
+
 ```bash
-volcano
+volcano <SUBCOMMAND> [OPTIONS]
 ```
 
-### Command Line Options
+Subcommands:
+- `visualise` — start the audio visualiser
+- `play-pause` — toggle play/pause on the active MPRIS player
+- `next` — skip to next track
+- `previous` — go to previous track
+
+### Basic Usage
+```bash
+volcano visualise
+```
+
+### Visualise Options
 
 | Option | Default | Description |
 |--------|---------|-------------|
-| `--bars` | 40 | Number of frequency bars to display |
+| `--bars` | 20 | Number of frequency bars to display |
 | `--auto-sensitivity` | true | Enable automatic sensitivity adjustment |
 | `--noise-reduction` | 0.77 | Noise reduction level (0.0-1.0) |
 | `--lowcut` | 80 | Low frequency cut-off (Hz) |
@@ -67,31 +80,37 @@ volcano
 | `--fps` | 60 | Frames per second |
 | `--latency` | 256 | Audio latency in samples |
 | `--threshold` | -20.0 | Threshold level in dB |
+| `--strategy` | Stereo | Channel strategy: `Average`, `Left`, `Right`, `Stereo` |
 
 ### Examples
 
 ```bash
-# High-resolution visualization with 80 bars
-volcano --bars 80 --fps 120
+# High-resolution visualisation with 80 bars
+volcano visualise --bars 80 --fps 120
 
 # Lower sensitivity for quieter environments
-volcano --threshold -30.0 --noise-reduction 0.9
+volcano visualise --threshold -30.0 --noise-reduction 0.9
 
-# Optimize for bass-heavy music
-volcano --lowcut 40 --highcut 8000
+# Optimise for bass-heavy music
+volcano visualise --lowcut 40 --highcut 8000
+
+# Control the player via MPRIS
+volcano play-pause
+volcano next
+volcano previous
 ```
 
 ## Integration
 
 ### Waybar Configuration
 
-Volcano is designed to work seamlessly with Waybar. Add this to your Waybar configuration:
+Volcano emits JSON formatted output (text, tooltip, class). Add this to your Waybar configuration:
 
 ```json
 {
     "custom/volcano": {
-        "exec": "volcano --bars 20 --fps 30",
-        "format": "🎵 {}",
+        "exec": "volcano visualise --bars 20 --fps 30",
+        "return-type": "json",
         "max-length": 50
     }
 }
@@ -99,13 +118,24 @@ Volcano is designed to work seamlessly with Waybar. Add this to your Waybar conf
 
 ## Architecture
 
-Volcano consists of several key components:
+Volcano is structured as a reusable library plus a CLI binary:
 
-- **Audio Input**: PulseAudio integration for capturing system audio
-- **FFT Processing**: CAVA library for frequency analysis
-- **Visualization**: Unicode Braille patterns for terminal display
-- **Output**: Configurable formatters (currently Waybar-focused)
-- **Media Integration**: playerctl integration for track information
+- **Library (`src/`)**
+    - `lib.rs` — crate root exporting `player` and `visualiser`
+    - `player.rs` — MPRIS client and server thread (get info, play/pause, next, previous)
+    - `visualiser.rs` — orchestration of capture, CAVA processing, and output formatting
+    - `visualiser/` — submodules:
+        - `cava.rs` — FFI to CAVA via bindgen
+        - `input.rs` + `input/pulseaudio.rs` — PulseAudio capture
+        - `output.rs` — re-exports
+        - `output/channel.rs` — channel strategies (Average, Left, Right, Stereo)
+        - `output/formatter.rs` — `AsciiFormatter`, `DotFormatter`, `WaybarFormatter`
+
+- **CLI (`bin/cli/`)**
+    - `main.rs` — subcommand dispatch
+    - `cmd.rs` — Clap definitions for `visualise`, `play-pause`, `next`, `previous`
+    - `cmd/visualise.rs` — starts the visualiser using `WaybarFormatter<DotFormatter>`
+    - `cmd/playctl.rs` — MPRIS playback controls
 
 ## Configuration
 
@@ -113,9 +143,9 @@ Volcano uses command-line arguments for configuration. For permanent settings, c
 
 ```bash
 # ~/.bashrc or ~/.zshrc
-alias volcano-bass='volcano --lowcut 40 --highcut 200 --bars 20'
-alias volcano-treble='volcano --lowcut 1000 --highcut 16000 --bars 30'
-alias volcano-full='volcano --bars 80 --fps 120 --threshold -25'
+alias volcano-bass='volcano visualise --lowcut 40 --highcut 200 --bars 20'
+alias volcano-treble='volcano visualise --lowcut 1000 --highcut 16000 --bars 30'
+alias volcano-full='volcano visualise --bars 80 --fps 120 --threshold -25'
 ```
 
 ## Troubleshooting
@@ -126,9 +156,9 @@ alias volcano-full='volcano --bars 80 --fps 120 --threshold -25'
 - Verify permissions for audio access
 
 ### CAVA Library Issues
-- Ensure libcava-dev is properly installed
+- Ensure `libcava` development package is installed
 - Check library path: `ldconfig -p | grep cava`
-- Rebuild with: `cargo clean && cargo build`
+- Rebuild: `cargo clean && cargo build`
 
 ### High CPU Usage
 - Reduce FPS: `--fps 30`
@@ -151,9 +181,10 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## Acknowledgments
 
-- [CAVA](https://github.com/karlstav/cava) - The excellent audio analysis library
-- [PulseAudio](https://www.freedesktop.org/wiki/Software/PulseAudio/) - Audio server
-- [Waybar](https://github.com/Alexays/Waybar) - Wayland status bar
+- [CAVA](https://github.com/karlstav/cava) — audio analysis library
+- [PulseAudio](https://www.freedesktop.org/wiki/Software/PulseAudio/) — audio server
+- [Waybar](https://github.com/Alexays/Waybar) — Wayland status bar
+- [MPRIS](https://specifications.freedesktop.org/mpris-spec/latest/) — media player interface over D-Bus
 
 ---
 
