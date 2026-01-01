@@ -2,7 +2,7 @@ use crate::cmd::VisualiseArgs;
 use crate::player::{self, PlayingInfo};
 use crate::visualiser::*;
 
-impl From<VisualiseArgs> for Visualiser {
+impl From<VisualiseArgs> for Visualiser<MonitorSelection> {
     fn from(args: VisualiseArgs) -> Self {
         Visualiser {
             bars: args.bars,
@@ -14,18 +14,19 @@ impl From<VisualiseArgs> for Visualiser {
             latency: args.latency,
             max_level: METERS[0][0].len() as u32 - 1,
             threshold: args.threshold,
-            strategy: args.strategy,
+            channel: args.strategy,
+            monitor_select: MonitorSelection::First,
         }
     }
 }
 
 pub fn start_visualiser(args: VisualiseArgs) {
-    let visualiser: Visualiser = args.into();
+    let visualiser: Visualiser<_> = args.into();
     let (player, player_handle) =
         player::PlayerServer::start(std::time::Duration::from_millis(200));
 
     let vis_handle = visualiser
-        .start(select_first_monitor, move |levels| {
+        .start(move |levels| {
             let info = player.get_info();
             let pos_rate = info.as_ref().map_or(0.0, |i| i.progress());
             let dots_str = dots(&levels, pos_rate);

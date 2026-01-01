@@ -6,7 +6,7 @@ fn linear_to_db(linear: f64) -> f64 {
 
 /// Strategy for processing audio input levels.
 #[derive(Debug, Clone)]
-pub enum Strategy {
+pub enum Channel {
     /// Average the left and right channels.
     Average,
     /// Use the left channel only.
@@ -17,46 +17,46 @@ pub enum Strategy {
     Stereo,
 }
 
-impl Display for Strategy {
+impl Display for Channel {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let s = match self {
-            Strategy::Average => "Average",
-            Strategy::Left => "Left",
-            Strategy::Right => "Right",
-            Strategy::Stereo => "Stereo",
+            Channel::Average => "Average",
+            Channel::Left => "Left",
+            Channel::Right => "Right",
+            Channel::Stereo => "Stereo",
         };
         write!(f, "{}", s)
     }
 }
 
-impl From<&str> for Strategy {
+impl From<&str> for Channel {
     fn from(s: &str) -> Self {
         match s.to_lowercase().as_str() {
-            "average" => Strategy::Average,
-            "left" => Strategy::Left,
-            "right" => Strategy::Right,
-            "stereo" => Strategy::Stereo,
-            _ => Strategy::Stereo,
+            "average" => Channel::Average,
+            "left" => Channel::Left,
+            "right" => Channel::Right,
+            "stereo" => Channel::Stereo,
+            _ => Channel::Stereo,
         }
     }
 }
 
-impl Strategy {
+impl Channel {
     fn process(&self, input: &mut [f64]) -> Vec<f64> {
         match self {
-            Strategy::Average => {
+            Channel::Average => {
                 let (l, r) = input.split_at_mut(input.len() / 2);
                 l.iter().zip(r.iter()).map(|(r, l)| (r + l) / 2.0).collect()
             }
-            Strategy::Left => {
+            Channel::Left => {
                 let (l, _) = input.split_at_mut(input.len() / 2);
                 l.to_vec()
             }
-            Strategy::Right => {
+            Channel::Right => {
                 let (_, r) = input.split_at_mut(input.len() / 2);
                 r.to_vec()
             }
-            Strategy::Stereo => {
+            Channel::Stereo => {
                 let (l, r) = input.split_at_mut(input.len() / 2);
                 r.reverse();
                 l.iter().chain(r.iter()).cloned().collect()
@@ -91,7 +91,7 @@ mod test {
     fn test_levels() {
         let mut input = vec![2.0, 0.32, 0.1, 0.032, 0.01, 0.001];
         let max = 10;
-        let result = Strategy::Average.levels(&mut input, max, -60.0);
+        let result = Channel::Average.levels(&mut input, max, -60.0);
         assert_eq!(result, vec![10, 8, 7, 5, 3, 0]);
     }
 }

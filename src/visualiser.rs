@@ -10,13 +10,13 @@ use std::time::Duration;
 
 use cava::{Cava, CavaError};
 use input::pulseaudio::*;
-pub use output::Strategy;
+pub use output::Channel;
 use ringbuf::HeapRb;
 use ringbuf::traits::{Consumer, Split};
 
 /// Configuration for the audio visualiser.
 #[derive(Debug, Clone)]
-pub struct Visualiser {
+pub struct Visualiser<T> {
     pub bars: usize,
     pub auto_sensitivity: bool,
     pub noise_reduction: f32,
@@ -26,10 +26,11 @@ pub struct Visualiser {
     pub latency: u32,
     pub max_level: u32,
     pub threshold: f32,
-    pub strategy: Strategy,
+    pub channel: Channel,
+    pub monitor_select: T,
 }
 
-impl Default for Visualiser {
+impl Default for Visualiser<MonitorSelection> {
     /// Create a default configuration for the visualiser.
     /// - bars: 40
     /// - auto_sensitivity: true
@@ -52,23 +53,23 @@ impl Default for Visualiser {
             latency: 256,
             max_level: 100,
             threshold: -20.0,
-            strategy: Strategy::Stereo,
+            channel: Channel::Stereo,
+            monitor_select: MonitorSelection::First,
         }
     }
 }
 
-impl Visualiser {
+impl<T: MonitorSelector> Visualiser<T> {
     /// Start the visualiser with the given monitor selector function.
     pub fn start(
         self,
-        monitor_select: impl Fn(&SourceInfo) -> bool,
         formatter: impl Fn(&[u32]) -> String + Send + 'static,
     ) -> Result<JoinHandle<()>, VisualiserError> {
         let mut socket = Client::connect()?;
         let monitors = socket.get_monitors()?;
         let mon = monitors
             .into_iter()
-            .find(|m| monitor_select(m))
+            .find(|m| self.monitor_select.select(m))
             .ok_or(VisualiserError::NoMonitorFound)?;
         let frame_size =
             mon.sample_spec.sample_rate / self.fps * mon.channel_map.num_channels() as u32;
@@ -108,7 +109,7 @@ impl Visualiser {
                 cava.execute(&mut buffer, &mut cava_out);
 
                 let levels =
-                    self.strategy
+                    self.channel
                         .levels(&mut cava_out, self.max_level, self.threshold as f64);
                 let formatted_levels = formatter(&levels);
 
@@ -125,9 +126,36 @@ impl Visualiser {
     }
 }
 
-/// Default monitor selector that selects first monitor.
-pub fn select_first_monitor(_info: &SourceInfo) -> bool {
-    true
+/// Trait for selecting a monitor source.
+pub trait MonitorSelector {
+    fn select(&self, info: &SourceInfo) -> bool;
+}
+
+impl<T> MonitorSelector for T
+where
+    T: Fn(&SourceInfo) -> bool,
+{
+    fn select(&self, info: &SourceInfo) -> bool {
+        self(info)
+    }
+}
+
+/// Predefined monitor selection strategies.
+#[derive(Debug, Clone)]
+pub enum MonitorSelection {
+    /// Select the first available monitor.
+    First,
+    /// Select a monitor by its name.
+    ByName(String),
+}
+
+impl MonitorSelector for MonitorSelection {
+    fn select(&self, info: &SourceInfo) -> bool {
+        match self {
+            MonitorSelection::First => true,
+            MonitorSelection::ByName(name) => &info.name.to_str().unwrap_or("") == name,
+        }
+    }
 }
 
 #[derive(Debug)]

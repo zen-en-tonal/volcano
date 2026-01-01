@@ -3,7 +3,7 @@ pub mod visualise;
 
 use clap::{Parser, Subcommand};
 
-use crate::visualiser::Strategy;
+use crate::visualiser::Channel;
 
 /// Command line arguments for the application.
 #[derive(Parser, Debug)]
@@ -60,6 +60,6 @@ pub struct VisualiseArgs {
 
     /// Strategy for processing audio input levels
     /// (Options: Average, Left, Right, Stereo)
-    #[arg(long, default_value_t = Strategy::Stereo)]
-    strategy: Strategy,
+    #[arg(long, default_value_t = Channel::Stereo)]
+    strategy: Channel,
 }
