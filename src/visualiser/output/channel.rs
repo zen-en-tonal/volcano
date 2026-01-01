@@ -91,7 +91,7 @@ mod test {
     fn test_levels() {
         let mut input = vec![2.0, 0.32, 0.1, 0.032, 0.01, 0.001];
         let max = 10;
-        let result = Channel::Average.levels(&mut input, max, -60.0);
-        assert_eq!(result, vec![10, 8, 7, 5, 3, 0]);
+        let result = Channel::Stereo.levels(&mut input, max, -60.0);
+        assert_eq!(result, vec![10, 8, 7, 0, 3, 5]);
     }
 }
