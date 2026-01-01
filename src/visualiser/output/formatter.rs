@@ -27,7 +27,7 @@ impl Formatter for AsciiFormatter {
 /// A formatter that represents levels using dot characters.
 #[derive(Debug, Clone)]
 pub struct DotFormatter {
-    pub player: Option<player::PlayerServer>,
+    pub player: Option<player::PlayerClient>,
 }
 
 impl Formatter for DotFormatter {
@@ -49,7 +49,7 @@ impl Formatter for DotFormatter {
 /// A formatter that formats levels for Waybar with player info.
 #[derive(Debug, Clone)]
 pub struct WaybarFormatter<T> {
-    pub player: Option<player::PlayerServer>,
+    pub player: Option<player::PlayerClient>,
     pub inner: T,
 }
 

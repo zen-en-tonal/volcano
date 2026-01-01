@@ -1,85 +1,85 @@
 use mpris::PlayerFinder;
 use std::{fmt::Display, sync::mpsc, time::Duration};
 
-/// Server to interact with media players via MPRIS.
-/// The server runs in its own thread and communicates via channels.
+/// Client to interact with media players via MPRIS.
+/// The client communicates with a server running in its own thread via channels.
 /// It supports fetching playing info and controlling playback.
 ///
 /// This struct has only cloneable handles to the server, so cloning it is cheap.
 #[derive(Debug, Clone)]
-pub struct PlayerServer {
+pub struct PlayerClient {
     cmd: mpsc::Sender<Command>,
 }
 
-impl PlayerServer {
-    /// Start the player server with a specified cache TTL.
-    pub fn start(cache_ttl: std::time::Duration) -> (Self, std::thread::JoinHandle<()>) {
-        let (cmd_tx, cmd_rx) = mpsc::channel::<Command>();
+/// Start the player server with a specified cache TTL.
+pub fn start_player(cache_ttl: std::time::Duration) -> (PlayerClient, std::thread::JoinHandle<()>) {
+    let (cmd_tx, cmd_rx) = mpsc::channel::<Command>();
 
-        let handle = std::thread::spawn(move || {
-            let finder = PlayerFinder::new().unwrap();
+    let handle = std::thread::spawn(move || {
+        let finder = PlayerFinder::new().unwrap();
 
-            let mut info = None;
-            let mut last_fetched = std::time::Instant::now() - cache_ttl;
+        let mut info = None;
+        let mut last_fetched = std::time::Instant::now() - cache_ttl;
 
-            loop {
-                // Block until a command is received to avoid busy waiting
-                while let Ok(command) = cmd_rx.recv() {
-                    match command {
-                        Command::GetInfo { respond_to } => {
-                            // Check cache first and return if still valid
-                            if last_fetched + cache_ttl > std::time::Instant::now() {
-                                let _ = respond_to.send(info.clone());
+        loop {
+            // Block until a command is received to avoid busy waiting
+            while let Ok(command) = cmd_rx.recv() {
+                match command {
+                    Command::GetInfo { respond_to } => {
+                        // Check cache first and return if still valid
+                        if last_fetched + cache_ttl > std::time::Instant::now() {
+                            let _ = respond_to.send(info.clone());
+                            continue;
+                        }
+
+                        // Get the active player
+                        let player = match finder.find_active() {
+                            Ok(p) => p,
+                            Err(_) => {
+                                let _ = respond_to.send(None);
                                 continue;
                             }
+                        };
 
-                            // Get the active player
-                            let player = match finder.find_active() {
-                                Ok(p) => p,
-                                Err(_) => {
-                                    let _ = respond_to.send(None);
-                                    continue;
-                                }
-                            };
-
-                            // Fetch latest info
-                            let latest_info = match get_info(&player) {
-                                Some(info) => Some(info),
-                                None => None,
-                            };
-                            let _ = respond_to.send(latest_info.clone());
-                            last_fetched = std::time::Instant::now();
-                            info = latest_info;
-                        }
-                        Command::TogglePlayPause { respond_to } => {
-                            let res = match finder.find_active() {
-                                Ok(p) => p.play_pause().is_ok(),
-                                Err(_e) => false,
-                            };
-                            let _ = respond_to.send(res);
-                        }
-                        Command::Next { respond_to } => {
-                            let res = match finder.find_active() {
-                                Ok(p) => p.next().is_ok(),
-                                Err(_e) => false,
-                            };
-                            let _ = respond_to.send(res);
-                        }
-                        Command::Previous { respond_to } => {
-                            let res = match finder.find_active() {
-                                Ok(p) => p.previous().is_ok(),
-                                Err(_e) => false,
-                            };
-                            let _ = respond_to.send(res);
-                        }
+                        // Fetch latest info
+                        let latest_info = match get_info(&player) {
+                            Some(info) => Some(info),
+                            None => None,
+                        };
+                        let _ = respond_to.send(latest_info.clone());
+                        last_fetched = std::time::Instant::now();
+                        info = latest_info;
+                    }
+                    Command::TogglePlayPause { respond_to } => {
+                        let res = match finder.find_active() {
+                            Ok(p) => p.play_pause().is_ok(),
+                            Err(_e) => false,
+                        };
+                        let _ = respond_to.send(res);
+                    }
+                    Command::Next { respond_to } => {
+                        let res = match finder.find_active() {
+                            Ok(p) => p.next().is_ok(),
+                            Err(_e) => false,
+                        };
+                        let _ = respond_to.send(res);
+                    }
+                    Command::Previous { respond_to } => {
+                        let res = match finder.find_active() {
+                            Ok(p) => p.previous().is_ok(),
+                            Err(_e) => false,
+                        };
+                        let _ = respond_to.send(res);
                     }
                 }
             }
-        });
+        }
+    });
 
-        (Self { cmd: cmd_tx }, handle)
-    }
+    (PlayerClient { cmd: cmd_tx }, handle)
+}
 
+impl PlayerClient {
     /// Get the current playing information.
     pub fn get_info(&self) -> Option<PlayingInfo> {
         let (resp_tx, resp_rx) = mpsc::channel::<Option<PlayingInfo>>();

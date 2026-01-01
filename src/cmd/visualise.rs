@@ -25,8 +25,7 @@ impl From<VisualiseArgs> for Visualiser<WaybarFormatter<DotFormatter>> {
 
 pub fn start_visualiser(args: VisualiseArgs) {
     let mut visualiser: Visualiser<WaybarFormatter<DotFormatter>> = args.into();
-    let (player, player_handle) =
-        player::PlayerServer::start(std::time::Duration::from_millis(200));
+    let (player, player_handle) = player::start_player(std::time::Duration::from_millis(200));
     visualiser.formatter.player = Some(player.clone());
     visualiser.formatter.inner.player = Some(player);
 
