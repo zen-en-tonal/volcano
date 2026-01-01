@@ -2,6 +2,10 @@ use mpris::PlayerFinder;
 use std::{fmt::Display, sync::mpsc, time::Duration};
 
 /// Server to interact with media players via MPRIS.
+/// The server runs in its own thread and communicates via channels.
+/// It supports fetching playing info and controlling playback.
+///
+/// This struct has only cloneable handles to the server, so cloning it is cheap.
 #[derive(Debug, Clone)]
 pub struct PlayerServer {
     cmd: mpsc::Sender<Command>,
@@ -144,6 +148,7 @@ fn get_info(player: &mpris::Player) -> Option<PlayingInfo> {
     })
 }
 
+#[derive(Debug, Clone)]
 enum Command {
     GetInfo {
         respond_to: mpsc::Sender<Option<PlayingInfo>>,
@@ -159,12 +164,18 @@ enum Command {
     },
 }
 
+/// Information about the currently playing track.
 #[derive(Debug, Clone)]
 pub struct PlayingInfo {
+    /// Current position in seconds.
     pub position: f32,
+    /// Total length in seconds.
     pub length: f32,
+    /// Playback state (e.g., Playing, Paused).
     pub state: String,
+    /// Title of the track.
     pub title: String,
+    /// Artist of the track.
     pub artist: String,
 }
 
@@ -196,5 +207,23 @@ fn format_duration(seconds: f32) -> String {
     let total_seconds = seconds as u32;
     let minutes = total_seconds / 60;
     let seconds = total_seconds % 60;
-    format!("{:02}:{:02}", minutes, seconds)
+    let hours = minutes / 60;
+    let mut str = String::with_capacity(16);
+    if hours > 0 {
+        str.push_str(&format!("{:02}:", hours));
+    }
+    str.push_str(&format!("{:02}:{:02}", minutes % 60, seconds));
+    str
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_format_duration() {
+        assert_eq!(format_duration(3661.0), "01:01:01");
+        assert_eq!(format_duration(61.0), "01:01");
+        assert_eq!(format_duration(59.0), "00:59");
+    }
 }
