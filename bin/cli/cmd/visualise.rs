@@ -1,6 +1,6 @@
 use crate::cmd::VisualiseArgs;
-use crate::player;
-use crate::visualiser::{Inputs, Visualiser, WaybarFormatter, DotFormatter};
+use volcano::player;
+use volcano::visualiser::{DotFormatter, Inputs, Visualiser, WaybarFormatter};
 
 impl From<VisualiseArgs> for Visualiser<WaybarFormatter<DotFormatter>> {
     fn from(args: VisualiseArgs) -> Self {

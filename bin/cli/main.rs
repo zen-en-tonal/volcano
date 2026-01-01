@@ -2,9 +2,7 @@ use clap::Parser;
 
 use crate::cmd::Commands;
 
-pub mod cmd;
-pub mod player;
-pub mod visualiser;
+mod cmd;
 
 fn main() {
     let cli = cmd::Cli::parse();

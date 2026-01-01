@@ -1,4 +1,4 @@
-use crate::player::start_player;
+use volcano::player::start_player;
 
 pub fn play_pause() -> bool {
     let (player, _player_handle) = start_player(std::time::Duration::ZERO);

@@ -6,7 +6,7 @@ pub mod visualise;
 
 use clap::{Parser, Subcommand};
 
-use crate::visualiser::Channel;
+use volcano::visualiser::Channel;
 
 /// Command line arguments for the application.
 #[derive(Parser, Debug)]
