@@ -24,6 +24,8 @@ impl Formatter for AsciiFormatter {
     }
 }
 
+/// A formatter that represents levels using dot characters.
+#[derive(Debug, Clone)]
 pub struct DotFormatter {
     pub player: Option<player::PlayerServer>,
 }
@@ -44,6 +46,8 @@ impl Formatter for DotFormatter {
     }
 }
 
+/// A formatter that formats levels for Waybar with player info.
+#[derive(Debug, Clone)]
 pub struct WaybarFormatter<T> {
     pub player: Option<player::PlayerServer>,
     pub inner: T,
@@ -88,7 +92,6 @@ const DOTS: [[[char; 5]; 5]; 3] = [
     ],
 ];
 
-/// Formats levels into a string of dot characters.
 fn dots(levels: &[u32], pos_rate: f32) -> String {
     let bars = levels.len() / 2;
     let current_index_in_bar = (bars as f32 * pos_rate).floor() as usize;

@@ -2,9 +2,9 @@ use clap::Parser;
 
 use crate::cmd::Commands;
 
-mod cmd;
-mod player;
-mod visualiser;
+pub mod cmd;
+pub mod player;
+pub mod visualiser;
 
 fn main() {
     let cli = cmd::Cli::parse();
@@ -13,8 +13,8 @@ fn main() {
         Commands::Visualise(args) => {
             cmd::visualise::start_visualiser(args);
         }
-        Commands::TogglePlayPause => {
-            cmd::playctl::toggle_play_pause();
+        Commands::PlayPause => {
+            cmd::playctl::play_pause();
         }
         Commands::Next => {
             cmd::playctl::next();

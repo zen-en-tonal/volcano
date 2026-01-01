@@ -9,14 +9,15 @@ use std::thread::{JoinHandle, sleep};
 use std::time::Duration;
 
 use cava::{Cava, CavaError};
+pub use input::Inputs;
 use input::pulseaudio::*;
 pub use output::{AsciiFormatter, Channel, DotFormatter, WaybarFormatter};
 use ringbuf::HeapRb;
 use ringbuf::traits::{Consumer, Split};
 
 /// Configuration for the audio visualiser.
-#[derive(Debug, Clone)]
-pub struct Visualiser<T, Q> {
+#[derive(Debug)]
+pub struct Visualiser<T> {
     pub bars: usize,
     pub auto_sensitivity: bool,
     pub noise_reduction: f32,
@@ -26,11 +27,11 @@ pub struct Visualiser<T, Q> {
     pub latency: u32,
     pub threshold: f32,
     pub channel: Channel,
-    pub monitor_select: T,
-    pub formatter: Q,
+    pub input: input::Inputs,
+    pub formatter: T,
 }
 
-impl Default for Visualiser<MonitorSelection, AsciiFormatter> {
+impl Default for Visualiser<AsciiFormatter> {
     /// Create a default configuration for the visualiser.
     /// - bars: 40
     /// - auto_sensitivity: true
@@ -41,7 +42,6 @@ impl Default for Visualiser<MonitorSelection, AsciiFormatter> {
     /// - latency: 256
     /// - threshold: -20.0
     /// - channel: Stereo
-    /// - monitor_select: First
     /// - formatter: AsciiFormatter with max_level 1000 and separator ";"
     fn default() -> Self {
         Visualiser {
@@ -54,7 +54,7 @@ impl Default for Visualiser<MonitorSelection, AsciiFormatter> {
             latency: 256,
             threshold: -20.0,
             channel: Channel::Stereo,
-            monitor_select: MonitorSelection::First,
+            input: input::Inputs::pulseaudio(|_| true, 256).unwrap(),
             formatter: AsciiFormatter {
                 max_level: 1000,
                 separator: ";".to_string(),
@@ -63,34 +63,27 @@ impl Default for Visualiser<MonitorSelection, AsciiFormatter> {
     }
 }
 
-impl<T: MonitorSelector, Q: Formatter> Visualiser<T, Q> {
+impl<T: Formatter> Visualiser<T> {
     /// Start the visualiser with the given monitor selector function.
     pub fn start(self) -> Result<JoinHandle<()>, VisualiserError> {
-        let mut socket = Client::connect()?;
-        let monitors = socket.get_monitors()?;
-        let mon = monitors
-            .into_iter()
-            .find(|m| self.monitor_select.select(m))
-            .ok_or(VisualiserError::NoMonitorFound)?;
-        let frame_size =
-            mon.sample_spec.sample_rate / self.fps * mon.channel_map.num_channels() as u32;
+        let frame_size = self.input.frame_size(self.fps);
 
         let rb = HeapRb::<f32>::new((frame_size * 4) as usize);
         let (producer, mut consumer) = rb.split();
 
-        let record_handle = socket
-            .record_from_source(&mon, self.latency, producer)
-            .unwrap();
+        let sample_rate = self.input.sample_rate();
+        let channels = self.input.channels();
+
+        let record_handle = self.input.start_recording(producer)?;
 
         let output_handle = std::thread::spawn(move || {
             let mut buffer = vec![0f32; frame_size as usize];
-            let mut cava_out =
-                vec![0f64; self.bars as usize * mon.channel_map.num_channels() as usize];
+            let mut cava_out = vec![0f64; self.bars as usize * channels as usize];
 
             let cava = Cava::new(
                 self.bars as i32,
-                mon.sample_spec.sample_rate,
-                mon.channel_map.num_channels() as i32,
+                sample_rate,
+                channels as i32,
                 self.auto_sensitivity as i32,
                 self.noise_reduction as f64,
                 self.lowcut as i32,
@@ -164,35 +157,35 @@ impl MonitorSelector for MonitorSelection {
 
 /// Trait for formatting audio levels into a string representation.
 pub trait Formatter: Send + 'static {
+    /// Get the maximum level for the formatter.
     fn max_level(&self) -> u32;
+    /// Format the given levels into a string.
     fn format(&self, levels: &[u32]) -> String;
 }
 
 #[derive(Debug)]
 pub enum VisualiserError {
-    CavaError(CavaError),
-    PulseAudioError(PulseAudioError),
-    NoMonitorFound,
+    Cava(CavaError),
+    Record(input::RecorderError),
 }
 
 impl From<CavaError> for VisualiserError {
     fn from(err: CavaError) -> Self {
-        VisualiserError::CavaError(err)
+        VisualiserError::Cava(err)
     }
 }
 
-impl From<PulseAudioError> for VisualiserError {
-    fn from(err: PulseAudioError) -> Self {
-        VisualiserError::PulseAudioError(err)
+impl From<input::RecorderError> for VisualiserError {
+    fn from(err: input::RecorderError) -> Self {
+        VisualiserError::Record(err)
     }
 }
 
 impl Display for VisualiserError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            VisualiserError::CavaError(e) => write!(f, "Cava error: {}", e),
-            VisualiserError::PulseAudioError(e) => write!(f, "PulseAudio error: {}", e),
-            VisualiserError::NoMonitorFound => write!(f, "No monitor source found"),
+            VisualiserError::Cava(e) => write!(f, "Cava error: {}", e),
+            VisualiserError::Record(e) => write!(f, "Input error: {}", e),
         }
     }
 }

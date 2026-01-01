@@ -17,8 +17,11 @@ pub struct Cli {
 pub enum Commands {
     /// Start the audio visualiser
     Visualise(VisualiseArgs),
-    TogglePlayPause,
+    /// Toggle play/pause state
+    PlayPause,
+    /// Skip to the next track
     Next,
+    /// Return to the previous track
     Previous,
 }
 

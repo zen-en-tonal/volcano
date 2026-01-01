@@ -1,8 +1,8 @@
 use crate::player::PlayerServer;
 
-pub fn toggle_play_pause() -> bool {
+pub fn play_pause() -> bool {
     let (player, _player_handle) = PlayerServer::start(std::time::Duration::ZERO);
-    player.toggle_play_pause()
+    player.play_pause()
 }
 
 pub fn next() -> bool {

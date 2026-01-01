@@ -2,7 +2,7 @@ use crate::cmd::VisualiseArgs;
 use crate::player;
 use crate::visualiser::*;
 
-impl From<VisualiseArgs> for Visualiser<MonitorSelection, WaybarFormatter<DotFormatter>> {
+impl From<VisualiseArgs> for Visualiser<WaybarFormatter<DotFormatter>> {
     fn from(args: VisualiseArgs) -> Self {
         Visualiser {
             bars: args.bars,
@@ -14,7 +14,7 @@ impl From<VisualiseArgs> for Visualiser<MonitorSelection, WaybarFormatter<DotFor
             latency: args.latency,
             threshold: args.threshold,
             channel: args.strategy,
-            monitor_select: MonitorSelection::First,
+            input: Inputs::pulseaudio(|_| true, args.latency).unwrap(),
             formatter: WaybarFormatter {
                 player: None,
                 inner: DotFormatter { player: None },
@@ -24,7 +24,7 @@ impl From<VisualiseArgs> for Visualiser<MonitorSelection, WaybarFormatter<DotFor
 }
 
 pub fn start_visualiser(args: VisualiseArgs) {
-    let mut visualiser: Visualiser<_, _> = args.into();
+    let mut visualiser: Visualiser<WaybarFormatter<DotFormatter>> = args.into();
     let (player, player_handle) =
         player::PlayerServer::start(std::time::Duration::from_millis(200));
     visualiser.formatter.player = Some(player.clone());

@@ -93,7 +93,7 @@ impl PlayerServer {
     }
 
     /// Toggle play/pause state.
-    pub fn toggle_play_pause(&self) -> bool {
+    pub fn play_pause(&self) -> bool {
         let (resp_tx, resp_rx) = mpsc::channel::<bool>();
         let command = Command::TogglePlayPause {
             respond_to: resp_tx,
