@@ -10,13 +10,13 @@ use std::time::Duration;
 
 use cava::{Cava, CavaError};
 use input::pulseaudio::*;
-pub use output::Channel;
+pub use output::{AsciiFormatter, Channel, DotFormatter, WaybarFormatter};
 use ringbuf::HeapRb;
 use ringbuf::traits::{Consumer, Split};
 
 /// Configuration for the audio visualiser.
 #[derive(Debug, Clone)]
-pub struct Visualiser<T> {
+pub struct Visualiser<T, Q> {
     pub bars: usize,
     pub auto_sensitivity: bool,
     pub noise_reduction: f32,
@@ -24,13 +24,13 @@ pub struct Visualiser<T> {
     pub highcut: u32,
     pub fps: u32,
     pub latency: u32,
-    pub max_level: u32,
     pub threshold: f32,
     pub channel: Channel,
     pub monitor_select: T,
+    pub formatter: Q,
 }
 
-impl Default for Visualiser<MonitorSelection> {
+impl Default for Visualiser<MonitorSelection, AsciiFormatter> {
     /// Create a default configuration for the visualiser.
     /// - bars: 40
     /// - auto_sensitivity: true
@@ -39,9 +39,10 @@ impl Default for Visualiser<MonitorSelection> {
     /// - highcut: 16000
     /// - fps: 60
     /// - latency: 256
-    /// - max_level: 100
     /// - threshold: -20.0
-    /// - strategy: Stereo
+    /// - channel: Stereo
+    /// - monitor_select: First
+    /// - formatter: AsciiFormatter with max_level 1000 and separator ";"
     fn default() -> Self {
         Visualiser {
             bars: 40,
@@ -51,20 +52,20 @@ impl Default for Visualiser<MonitorSelection> {
             highcut: 16000,
             fps: 60,
             latency: 256,
-            max_level: 100,
             threshold: -20.0,
             channel: Channel::Stereo,
             monitor_select: MonitorSelection::First,
+            formatter: AsciiFormatter {
+                max_level: 1000,
+                separator: ";".to_string(),
+            },
         }
     }
 }
 
-impl<T: MonitorSelector> Visualiser<T> {
+impl<T: MonitorSelector, Q: Formatter> Visualiser<T, Q> {
     /// Start the visualiser with the given monitor selector function.
-    pub fn start(
-        self,
-        formatter: impl Fn(&[u32]) -> String + Send + 'static,
-    ) -> Result<JoinHandle<()>, VisualiserError> {
+    pub fn start(self) -> Result<JoinHandle<()>, VisualiserError> {
         let mut socket = Client::connect()?;
         let monitors = socket.get_monitors()?;
         let mon = monitors
@@ -108,10 +109,12 @@ impl<T: MonitorSelector> Visualiser<T> {
                 let _ = consumer.pop_slice(&mut buffer);
                 cava.execute(&mut buffer, &mut cava_out);
 
-                let levels =
-                    self.channel
-                        .levels(&mut cava_out, self.max_level, self.threshold as f64);
-                let formatted_levels = formatter(&levels);
+                let levels = self.channel.levels(
+                    &mut cava_out,
+                    self.formatter.max_level(),
+                    self.threshold as f64,
+                );
+                let formatted_levels = self.formatter.format(&levels);
 
                 writeln!(out, "{}", formatted_levels).unwrap();
             }
@@ -128,6 +131,7 @@ impl<T: MonitorSelector> Visualiser<T> {
 
 /// Trait for selecting a monitor source.
 pub trait MonitorSelector {
+    /// Determine if the given monitor source should be selected.
     fn select(&self, info: &SourceInfo) -> bool;
 }
 
@@ -156,6 +160,12 @@ impl MonitorSelector for MonitorSelection {
             MonitorSelection::ByName(name) => &info.name.to_str().unwrap_or("") == name,
         }
     }
+}
+
+/// Trait for formatting audio levels into a string representation.
+pub trait Formatter: Send + 'static {
+    fn max_level(&self) -> u32;
+    fn format(&self, levels: &[u32]) -> String;
 }
 
 #[derive(Debug)]

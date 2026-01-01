@@ -4,7 +4,6 @@ use std::{fmt::Display, sync::mpsc, time::Duration};
 /// Server to interact with media players via MPRIS.
 #[derive(Debug, Clone)]
 pub struct PlayerServer {
-    pub cache_ttl: std::time::Duration,
     cmd: mpsc::Sender<Command>,
 }
 
@@ -74,13 +73,7 @@ impl PlayerServer {
             }
         });
 
-        (
-            Self {
-                cache_ttl,
-                cmd: cmd_tx,
-            },
-            handle,
-        )
+        (Self { cmd: cmd_tx }, handle)
     }
 
     /// Get the current playing information.
