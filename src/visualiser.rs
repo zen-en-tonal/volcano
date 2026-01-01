@@ -1,16 +1,24 @@
+//! Audio visualiser module.
+//! Provides functionality to visualise audio input from various sources.
+//! Includes different formatters and input handling.
+//!
+//! Modules:
+//! - cava: Integration with the Cava audio visualisation library.
+//! - input: Handling different audio input sources.
+//! - output: Different formatters for visualising audio levels.
+
 mod cava;
 mod input;
 mod output;
 
 use std::fmt::Display;
-use std::io;
-use std::io::Write;
+use std::io::{self, Write};
 use std::thread::{JoinHandle, sleep};
 use std::time::Duration;
 
 use cava::{Cava, CavaError};
 pub use input::Inputs;
-use input::pulseaudio::*;
+use input::pulseaudio::SourceInfo;
 pub use output::{AsciiFormatter, Channel, DotFormatter, WaybarFormatter};
 use ringbuf::HeapRb;
 use ringbuf::traits::{Consumer, Split};

@@ -1,29 +1,28 @@
-use ::pulseaudio::protocol::SourceInfo;
 use ringbuf::traits::Producer;
 use std::{error::Error, thread::JoinHandle};
-
-use crate::visualiser::input::pulseaudio::Client;
 
 pub mod pulseaudio;
 
 /// Different audio input sources for the visualiser.
 #[derive(Debug)]
 pub enum Inputs {
+    /// Audio input from PulseAudio.
     PulseAudio {
-        source: SourceInfo,
+        source: pulseaudio::SourceInfo,
+        client: pulseaudio::Client,
         latency: u32,
-        client: Client,
     },
 }
 
 impl Inputs {
+    /// Create a PulseAudio input source based on a selection function.
     pub fn pulseaudio(
-        monitor_select: impl Fn(&SourceInfo) -> bool,
+        monitor_select: impl Fn(&pulseaudio::SourceInfo) -> bool,
         latency: u32,
     ) -> Result<Self, RecorderError> {
-        let mut client = Client::connect()?;
+        let mut client = pulseaudio::Client::connect()?;
         let monitors = client.get_monitors()?;
-        let selected = monitors.iter().find(|info| monitor_select(info)).unwrap();
+        let selected = monitors.iter().find(|&info| monitor_select(info)).unwrap();
 
         Ok(Inputs::PulseAudio {
             source: selected.clone(),

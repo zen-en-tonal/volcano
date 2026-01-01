@@ -1,3 +1,10 @@
+//! MPRIS media player client module.
+//! Provides functionality to interact with media players via the MPRIS D-Bus interface.
+//! Supports fetching playing information and controlling playback (play/pause, next, previous).
+//!
+//! This module runs a server in a separate thread to handle MPRIS communication,
+//! allowing for non-blocking operations in the main application.
+
 use mpris::PlayerFinder;
 use std::{fmt::Display, sync::mpsc, time::Duration};
 

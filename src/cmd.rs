@@ -1,3 +1,6 @@
+//! Command line interface module.
+//! Defines the command line arguments and subcommands for the application.
+
 pub mod playctl;
 pub mod visualise;
 

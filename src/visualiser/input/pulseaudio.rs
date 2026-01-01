@@ -1,10 +1,12 @@
 use byteorder::ReadBytesExt;
-use pulseaudio::protocol::{self};
+use pulseaudio::protocol;
 use ringbuf::traits::Producer;
-use std::fmt::Display;
-use std::io::BufReader;
-use std::os::unix::net::UnixStream;
-use std::{ffi::CString, io::Read};
+use std::{
+    ffi::CString,
+    fmt::Display,
+    io::{BufReader, Read},
+    os::unix::net::UnixStream,
+};
 
 pub use pulseaudio::protocol::SourceInfo;
 

@@ -1,6 +1,6 @@
 use crate::cmd::VisualiseArgs;
 use crate::player;
-use crate::visualiser::*;
+use crate::visualiser::{Inputs, Visualiser, WaybarFormatter, DotFormatter};
 
 impl From<VisualiseArgs> for Visualiser<WaybarFormatter<DotFormatter>> {
     fn from(args: VisualiseArgs) -> Self {
