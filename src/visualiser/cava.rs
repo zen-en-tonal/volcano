@@ -2,7 +2,7 @@
 #![allow(non_camel_case_types)]
 #![allow(non_snake_case)]
 
-use std::{error::Error, fmt::Display};
+use std::{error::Error, ffi::CStr, fmt::Display, mem};
 
 include!(concat!(env!("OUT_DIR"), "/bindings.rs"));
 
@@ -34,8 +34,21 @@ impl Cava {
             )
         };
 
-        if plan.is_null() {
-            Err(CavaError::InitializationFailed)
+        let err_msg = unsafe {
+            match CStr::from_bytes_with_nul(
+                &(*plan)
+                    .error_message
+                    .into_iter()
+                    .map(|c| c as u8)
+                    .collect::<Vec<u8>>(),
+            ) {
+                Ok(s) => s.to_str().unwrap_or("").to_string(),
+                Err(_) => "".to_string(),
+            }
+        };
+
+        if !err_msg.is_empty() {
+            Err(CavaError::InitializationFailed { msg: err_msg })
         } else {
             Ok(Cava { plan })
         }
@@ -71,7 +84,7 @@ impl Drop for Cava {
 /// An error that can occur when initializing or using Cava.
 #[derive(Debug)]
 pub enum CavaError {
-    InitializationFailed,
+    InitializationFailed { msg: String },
 }
 
 impl Error for CavaError {}
@@ -79,7 +92,9 @@ impl Error for CavaError {}
 impl Display for CavaError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            CavaError::InitializationFailed => write!(f, "Cava initialization failed"),
+            CavaError::InitializationFailed { msg } => {
+                write!(f, "Cava initialization failed: {}", msg)
+            }
         }
     }
 }
