@@ -46,14 +46,15 @@ impl Formatter for DotFormatter {
     }
 }
 
-/// A formatter that formats levels for Waybar with player info.
+/// A formatter that uses a template to format the output string.
 #[derive(Debug, Clone)]
-pub struct WaybarFormatter<T> {
+pub struct TemplateFormatter<T> {
     pub player: Option<player::PlayerClient>,
     pub inner: T,
+    pub template: String,
 }
 
-impl<T: Formatter> Formatter for WaybarFormatter<T> {
+impl<T: Formatter> Formatter for TemplateFormatter<T> {
     fn max_level(&self) -> u32 {
         self.inner.max_level()
     }
@@ -64,9 +65,25 @@ impl<T: Formatter> Formatter for WaybarFormatter<T> {
             Some(p) => p.get_info(),
             None => None,
         };
-        waybar(&text, info)
+        match info {
+            Some(info) => self
+                .template
+                .replace("{text}", &text)
+                .replace("{title}", &info.title)
+                .replace("{artist}", &info.artist)
+                .replace("{state}", &info.state),
+            None => self
+                .template
+                .replace("{text}", &text)
+                .replace("{title}", "No Title")
+                .replace("{artist}", "No Artist")
+                .replace("{state}", "Stopped"),
+        }
     }
 }
+
+pub const TEMPLATE_WAYBAR: &str =
+    "{\"text\":\"{text}\",\"tooltip\":\"{artist} - {title}\",\"class\":\"{state}\"}";
 
 const DOTS: [[[char; 5]; 5]; 3] = [
     [
@@ -117,28 +134,4 @@ fn dots(levels: &[u32], pos_rate: f32) -> String {
             DOTS[frac][left_level][right_level]
         })
         .collect()
-}
-
-fn waybar(text: &str, info: Option<PlayingInfo>) -> String {
-    match info {
-        Some(info) => {
-            let mut info_str = String::with_capacity(128);
-            info_str.push_str("{\"text\":\"");
-            info_str.push_str(text);
-            info_str.push_str("\",\"tooltip\":\"");
-            info_str.push_str(&info.to_string());
-            info_str.push_str("\",\"class\":\"");
-            info_str.push_str(&info.state.to_lowercase());
-            info_str.push_str("\"}");
-
-            info_str
-        }
-        None => {
-            let mut info_str = String::with_capacity(64);
-            info_str.push_str("{\"text\":\"");
-            info_str.push_str(text);
-            info_str.push_str("\",\"tooltip\":\"No player info available\",\"class\":\"stopped\"}");
-            info_str
-        }
-    }
 }

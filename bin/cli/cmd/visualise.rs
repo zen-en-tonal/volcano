@@ -1,8 +1,8 @@
 use crate::cmd::VisualiseArgs;
 use volcano::player;
-use volcano::visualiser::{DotFormatter, Inputs, Visualiser, WaybarFormatter};
+use volcano::visualiser::{DotFormatter, Inputs, TemplateFormatter, Visualiser};
 
-impl From<VisualiseArgs> for Visualiser<WaybarFormatter<DotFormatter>> {
+impl From<VisualiseArgs> for Visualiser<TemplateFormatter<DotFormatter>> {
     fn from(args: VisualiseArgs) -> Self {
         Visualiser {
             bars: args.bars,
@@ -15,16 +15,17 @@ impl From<VisualiseArgs> for Visualiser<WaybarFormatter<DotFormatter>> {
             threshold: args.threshold,
             channel: args.strategy,
             input: Inputs::pulseaudio(|_| true, args.latency).unwrap(),
-            formatter: WaybarFormatter {
+            formatter: TemplateFormatter {
                 player: None,
                 inner: DotFormatter { player: None },
+                template: args.template,
             },
         }
     }
 }
 
 pub fn start_visualiser(args: VisualiseArgs) {
-    let mut visualiser: Visualiser<WaybarFormatter<DotFormatter>> = args.into();
+    let mut visualiser: Visualiser<TemplateFormatter<DotFormatter>> = args.into();
     let (player, player_handle) = player::start_player(std::time::Duration::from_millis(200));
     visualiser.formatter.player = Some(player.clone());
     visualiser.formatter.inner.player = Some(player);

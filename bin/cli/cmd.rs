@@ -6,7 +6,7 @@ pub mod visualise;
 
 use clap::{Parser, Subcommand};
 
-use volcano::visualiser::Channel;
+use volcano::visualiser::{Channel, TEMPLATE_WAYBAR};
 
 /// Command line arguments for the application.
 #[derive(Parser, Debug)]
@@ -68,4 +68,9 @@ pub struct VisualiseArgs {
     /// (Options: Average, Left, Right, Stereo)
     #[arg(long, default_value_t = Channel::Stereo)]
     strategy: Channel,
+
+    /// Template for output formatting
+    /// (Default: Waybar JSON format)
+    #[arg(long, default_value_t = TEMPLATE_WAYBAR.to_string())]
+    template: String,
 }

@@ -19,7 +19,7 @@ use std::time::Duration;
 use cava::{Cava, CavaError};
 pub use input::Inputs;
 use input::pulseaudio::SourceInfo;
-pub use output::{AsciiFormatter, Channel, DotFormatter, WaybarFormatter};
+pub use output::{AsciiFormatter, Channel, DotFormatter, TEMPLATE_WAYBAR, TemplateFormatter};
 use ringbuf::HeapRb;
 use ringbuf::traits::{Consumer, Split};
 
