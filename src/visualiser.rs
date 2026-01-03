@@ -79,6 +79,12 @@ impl<T: Formatter> Visualiser<T> {
         let rb = HeapRb::<f32>::new((frame_size * 4) as usize);
         let (producer, mut consumer) = rb.split();
 
+        // Determine the number of bars based on the selected channel mode.
+        let bars = match self.channel {
+            Channel::Left | Channel::Right | Channel::Average => self.bars * 2,
+            Channel::Stereo => self.bars,
+        };
+
         let sample_rate = self.input.sample_rate();
         let channels = self.input.channels();
 
@@ -89,7 +95,7 @@ impl<T: Formatter> Visualiser<T> {
             let mut cava_out = vec![0f64; self.bars as usize * channels as usize];
 
             let cava = Cava::new(
-                self.bars as i32,
+                bars as i32,
                 sample_rate,
                 channels as i32,
                 self.auto_sensitivity as i32,
