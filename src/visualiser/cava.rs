@@ -55,16 +55,11 @@ impl Cava {
     }
 
     /// Execute the Cava processing on the input audio data.
-    pub fn execute(&self, cava_in: &mut [f32], cava_out: &mut [f64]) {
+    pub fn execute(&self, cava_in: &mut [f64], cava_out: &mut [f64]) {
         let samples = cava_in.len();
-        let mut cast = vec![0.0; samples];
-        for i in 0..samples {
-            cast[i] = cava_in[i] as f64;
-        }
-
         unsafe {
             cava_execute(
-                cast.as_mut_ptr(),
+                cava_in.as_mut_ptr(),
                 samples as i32,
                 cava_out.as_mut_ptr(),
                 self.plan,

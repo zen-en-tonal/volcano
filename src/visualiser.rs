@@ -91,7 +91,8 @@ impl<T: Formatter> Visualiser<T> {
         let record_handle = self.input.start_recording(producer)?;
 
         let output_handle = std::thread::spawn(move || {
-            let mut buffer = vec![0f32; frame_size as usize];
+            let mut f32_buffer = vec![0f32; frame_size as usize];
+            let mut f64_buffer = vec![0f64; frame_size as usize];
             let mut cava_out = vec![0f64; self.bars as usize * channels as usize];
 
             let cava = Cava::new(
@@ -113,8 +114,13 @@ impl<T: Formatter> Visualiser<T> {
             loop {
                 sleep(sleep_duration);
 
-                let _ = consumer.pop_slice(&mut buffer);
-                cava.execute(&mut buffer, &mut cava_out);
+                let _ = consumer.pop_slice(&mut f32_buffer);
+                // Convert f32 samples to f64
+                for (i, sample) in f32_buffer.iter().enumerate() {
+                    f64_buffer[i] = *sample as f64;
+                }
+
+                cava.execute(&mut f64_buffer, &mut cava_out);
 
                 let levels = self.channel.levels(
                     &mut cava_out,
