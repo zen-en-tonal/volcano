@@ -144,7 +144,8 @@ fn get_info(player: &mpris::Player) -> Option<PlayingInfo> {
         player
             .get_playback_status()
             .unwrap_or(mpris::PlaybackStatus::Stopped)
-    );
+    )
+    .to_lowercase();
 
     Some(PlayingInfo {
         position,

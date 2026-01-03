@@ -77,7 +77,7 @@ impl<T: Formatter> Formatter for TemplateFormatter<T> {
                 .replace("{text}", &text)
                 .replace("{title}", "No Title")
                 .replace("{artist}", "No Artist")
-                .replace("{state}", "Stopped"),
+                .replace("{state}", "stopped"),
         }
     }
 }
