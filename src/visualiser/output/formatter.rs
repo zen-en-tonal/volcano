@@ -1,7 +1,4 @@
-use crate::{
-    player::{self, PlayingInfo},
-    visualiser::Formatter,
-};
+use crate::{player, visualiser::Formatter};
 
 /// A simple ASCII formatter that joins levels with a separator.
 #[derive(Debug, Clone)]
@@ -69,14 +66,18 @@ impl<T: Formatter> Formatter for TemplateFormatter<T> {
             Some(info) => self
                 .template
                 .replace("{text}", &text)
+                .replace("{position}", &info.position.to_string())
+                .replace("{length}", &info.length.to_string())
                 .replace("{title}", &info.title)
                 .replace("{artist}", &info.artist)
                 .replace("{state}", &info.state),
             None => self
                 .template
                 .replace("{text}", &text)
-                .replace("{title}", "No Title")
-                .replace("{artist}", "No Artist")
+                .replace("{position}", "")
+                .replace("{length}", "")
+                .replace("{title}", "")
+                .replace("{artist}", "")
                 .replace("{state}", "stopped"),
         }
     }
