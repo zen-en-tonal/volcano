@@ -21,7 +21,7 @@ pub use input::Inputs;
 use input::pulseaudio::SourceInfo;
 pub use output::{AsciiFormatter, Channel, DotFormatter, TEMPLATE_WAYBAR, TemplateFormatter};
 use ringbuf::HeapRb;
-use ringbuf::traits::{Consumer, Split};
+use ringbuf::traits::{Consumer, Observer, Split};
 
 /// Configuration for the audio visualiser.
 #[derive(Debug)]
@@ -112,8 +112,13 @@ impl<T: Formatter> Visualiser<T> {
             let sleep_duration = Duration::new(0, 1_000_000_000u32 / self.fps as u32);
 
             loop {
+                if record_handle.is_finished() && consumer.is_empty() {
+                    break;
+                }
+
                 sleep(sleep_duration);
 
+                f32_buffer.fill(0.0);
                 let _ = consumer.pop_slice(&mut f32_buffer);
                 // Convert f32 samples to f64
                 for (i, sample) in f32_buffer.iter().enumerate() {
@@ -131,14 +136,10 @@ impl<T: Formatter> Visualiser<T> {
 
                 writeln!(out, "{}", formatted_levels).unwrap();
             }
-        });
 
-        let handle = std::thread::spawn(move || {
-            record_handle.join().unwrap();
-            output_handle.join().unwrap();
+            let _ = record_handle.join();
         });
-
-        Ok(handle)
+        Ok(output_handle)
     }
 }
 

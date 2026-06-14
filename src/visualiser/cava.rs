@@ -2,7 +2,7 @@
 #![allow(non_camel_case_types)]
 #![allow(non_snake_case)]
 
-use std::{error::Error, ffi::CStr, fmt::Display};
+use std::{error::Error, fmt::Display};
 
 include!(concat!(env!("OUT_DIR"), "/bindings.rs"));
 
@@ -34,21 +34,10 @@ impl Cava {
             )
         };
 
-        let err_msg = unsafe {
-            match CStr::from_bytes_with_nul(
-                &(*plan)
-                    .error_message
-                    .into_iter()
-                    .map(|c| c as u8)
-                    .collect::<Vec<u8>>(),
-            ) {
-                Ok(s) => s.to_str().unwrap_or("").to_string(),
-                Err(_) => "".to_string(),
-            }
-        };
-
-        if !err_msg.is_empty() {
-            Err(CavaError::InitializationFailed { msg: err_msg })
+        if plan.is_null() {
+            Err(CavaError::InitializationFailed {
+                msg: "cava_init returned a null plan".to_string(),
+            })
         } else {
             Ok(Cava { plan })
         }

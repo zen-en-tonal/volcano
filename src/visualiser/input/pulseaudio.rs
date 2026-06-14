@@ -4,7 +4,7 @@ use ringbuf::traits::Producer;
 use std::{
     ffi::CString,
     fmt::Display,
-    io::{BufReader, Read},
+    io::{BufReader, Cursor, Read},
     os::unix::net::UnixStream,
 };
 
@@ -73,6 +73,7 @@ impl Client {
         latency: u32,
         mut prod: impl Producer<Item = f32> + Send + 'static,
     ) -> Result<std::thread::JoinHandle<()>, PulseAudioError> {
+        let max_packet_len = protocol::MAX_MEMBLOCKQ_LENGTH as u32;
         let params = protocol::RecordStreamParams {
             source_name: Some(source_info.name.clone()),
             sample_spec: protocol::SampleSpec {
@@ -98,37 +99,91 @@ impl Client {
         let handle = std::thread::spawn(move || {
             let mut buf = vec![0; record_stream.buffer_attr.fragment_size as usize];
             loop {
-                let Ok(desc) = protocol::read_descriptor(&mut self.sock) else {
-                    continue;
+                let desc = match protocol::read_descriptor(&mut self.sock) {
+                    Ok(desc) => desc,
+                    Err(err) => {
+                        eprintln!("PulseAudio record stream ended: {err}");
+                        break;
+                    }
                 };
 
-                // A channel of -1 is a command message. Everything else is data.
                 if desc.channel == u32::MAX {
+                    if desc.length > max_packet_len {
+                        eprintln!("PulseAudio command packet too large: {} bytes", desc.length);
+                        break;
+                    }
+
+                    let mut payload = vec![0; desc.length as usize];
+                    if let Err(err) = self.sock.read_exact(&mut payload) {
+                        eprintln!("PulseAudio command payload read failed: {err}");
+                        break;
+                    }
+
+                    let mut cursor = Cursor::new(payload.as_slice());
+                    if let Err(err) =
+                        protocol::Command::read_tag_prefixed(&mut cursor, self.protocol_version)
+                    {
+                        eprintln!("PulseAudio command decode failed: {err}");
+                        break;
+                    }
+                    if cursor.position() != cursor.get_ref().len() as u64 {
+                        eprintln!("PulseAudio command packet had trailing bytes");
+                        break;
+                    }
+
                     continue;
-                };
+                }
+
+                if desc.length > max_packet_len {
+                    eprintln!("PulseAudio data packet too large: {} bytes", desc.length);
+                    break;
+                }
 
                 buf.resize(desc.length as usize, 0);
-                let Ok(()) = self.sock.read_exact(&mut buf) else {
-                    continue;
+                if let Err(err) = self.sock.read_exact(&mut buf) {
+                    eprintln!("PulseAudio data payload read failed: {err}");
+                    break;
                 };
 
-                let mut cursor = std::io::Cursor::new(buf.as_slice());
+                let mut cursor = Cursor::new(buf.as_slice());
                 while cursor.position() < cursor.get_ref().len() as u64 {
                     match record_stream.sample_spec.format {
                         protocol::SampleFormat::S16Le => {
-                            let sample = cursor.read_i16::<byteorder::LittleEndian>().unwrap();
+                            let sample = match cursor.read_i16::<byteorder::LittleEndian>() {
+                                Ok(sample) => sample,
+                                Err(err) => {
+                                    eprintln!("PulseAudio sample decode failed: {err}");
+                                    break;
+                                }
+                            };
                             let _ = prod.try_push(sample as f32 / i16::MAX as f32);
                         }
                         protocol::SampleFormat::Float32Le => {
-                            let sample = cursor.read_f32::<byteorder::LittleEndian>().unwrap();
+                            let sample = match cursor.read_f32::<byteorder::LittleEndian>() {
+                                Ok(sample) => sample,
+                                Err(err) => {
+                                    eprintln!("PulseAudio sample decode failed: {err}");
+                                    break;
+                                }
+                            };
                             let _ = prod.try_push(sample);
                         }
                         protocol::SampleFormat::S32Le => {
-                            let sample = cursor.read_i32::<byteorder::LittleEndian>().unwrap();
+                            let sample = match cursor.read_i32::<byteorder::LittleEndian>() {
+                                Ok(sample) => sample,
+                                Err(err) => {
+                                    eprintln!("PulseAudio sample decode failed: {err}");
+                                    break;
+                                }
+                            };
                             let _ = prod.try_push(sample as f32 / i32::MAX as f32);
                         }
                         _ => unreachable!(),
                     };
+                }
+                if cursor.position() != cursor.get_ref().len() as u64 {
+                    eprintln!("PulseAudio data packet had trailing bytes");
+                    break;
                 }
             }
         });
